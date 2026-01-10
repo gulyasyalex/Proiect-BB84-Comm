@@ -2,100 +2,344 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>BB84 Pro Simulation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BB84 Protocol</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; max-width: 900px; margin: auto; }
-        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 1rem; }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .hidden { display: none; }
-        .log { height: 150px; overflow-y: scroll; background: #e9ecef; padding: 10px; border: 1px solid #ccc; margin-bottom: 10px;}
-        select { padding: 8px; font-size: 1rem; }
-        h1 { color: #333; }
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --nav-height: 60px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            padding-top: calc(var(--nav-height) + 20px);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- NAVBAR --- */
+        .navbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: var(--nav-height);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+        }
+
+        .nav-brand { font-weight: 700; font-size: 1.1rem; letter-spacing: -0.025em; }
         
-        /* History Table Styles */
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background-color: #f2f2f2; }
-        .history-box { max-height: 500px; overflow-y: auto; border: 1px solid #eee; }
+        .nav-btn {
+            background: transparent; color: var(--primary); border: 1px solid var(--primary);
+            padding: 8px 16px; font-size: 0.85rem; width: auto; margin: 0; box-shadow: none;
+        }
+        .nav-btn:hover { background: #eef2ff; transform: translateY(0); }
+
+        .container { width: 100%; max-width: 600px; padding: 0 20px; margin: 0 auto; }
+
+        /* --- MODAL (HELP GUIDE) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+            padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        .modal {
+            background: white; width: 100%; max-width: 500px; border-radius: var(--radius);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); overflow: hidden;
+            transform: translateY(20px); transition: transform 0.2s;
+        }
+        .modal-overlay.active .modal { transform: translateY(0); }
+
+        .modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+        .step-item { margin-bottom: 16px; display: flex; gap: 12px; }
+        .step-num { 
+            background: var(--primary); color: white; width: 24px; height: 24px; 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+            font-size: 0.8rem; font-weight: bold; flex-shrink: 0; margin-top: 2px;
+        }
+
+        /* --- CARDS --- */
+        .card {
+            background: var(--card-bg); border-radius: var(--radius); padding: 24px;
+            margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border);
+        }
+        .header-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+        }
+        h3 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+        
+        .status-badge {
+            background: #d1fae5; color: #065f46; padding: 4px 12px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .status-dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; }
+
+        /* --- BUTTONS --- */
+        button {
+            width: 100%; padding: 14px; border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            margin-bottom: 8px; background-color: var(--primary); color: white;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+        button:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+        button:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* --- ROLE GRID --- */
+        .role-grid { display: grid; gap: 12px; }
+        .btn-role {
+            background-color: white; color: var(--text-main); border: 1px solid var(--border);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-align: left;
+            display: flex; justify-content: space-between; align-items: center; padding: 16px;
+        }
+        .btn-role:hover:not(:disabled) { background-color: #f9fafb; border-color: var(--primary); color: var(--primary); }
+
+        /* --- FORMS --- */
+        .control-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+        select, input[type="text"] {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);
+            background: #f9fafb; font-size: 1rem; outline: none; -webkit-appearance: none;
+        }
+        select:focus, input:focus { border-color: var(--primary); background: white; }
+
+        /* --- ALERTS --- */
+        .alert-box {
+            background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239;
+            padding: 16px; border-radius: 8px; margin-bottom: 16px; animation: pulse 2s infinite;
+        }
+        .alert-box strong { display: block; margin-bottom: 8px; font-size: 1.1rem; }
+        .alert-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .alert-actions button { margin: 0; background: white; color: #9f1239; border: 1px solid #fecdd3; }
+
+        /* --- HISTORY --- */
+        .history-wrapper {
+            margin-top: 20px; background: #f9fafb; border-radius: 8px;
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        .history-header {
+            padding: 10px 16px; background: #f3f4f6; font-size: 0.8rem; font-weight: 600;
+            text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border);
+        }
+        .history-scroll { max-height: 200px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { position: sticky; top: 0; background: white; font-size: 0.75rem; color: var(--text-muted); }
+
+        /* --- CHAT --- */
+        .chat-container { display: flex; flex-direction: column; height: 100%; }
+        .log {
+            height: 200px; overflow-y: auto; background: #f9fafb; border-radius: 8px;
+            border: 1px solid var(--border); padding: 12px; margin-bottom: 12px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .chat-msg {
+            font-size: 0.9rem; padding: 8px 12px; background: white;
+            border-radius: 6px; border: 1px solid var(--border); align-self: flex-start;
+        }
+        .chat-input-row { display: flex; gap: 8px; }
+        .chat-input-row input { flex: 1; }
+        .chat-input-row button { width: auto; margin: 0; padding: 0 24px; }
+
+        .hidden { display: none !important; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        @media (max-width: 480px) {
+            .navbar { padding: 0 16px; }
+            .container { padding: 0 16px; }
+            .card { padding: 16px; }
+        }
     </style>
 </head>
 <body>
 
-    <h1>BB84 Simulation <span style="font-size:0.5em; color:#777;">(With History & Locking)</span></h1>
-    
-    <div id="login" class="card">
-        <h3>Select Station</h3>
-        <button onclick="join('Alice')">Join as Alice</button>
-        <button onclick="join('Eve')">Join as Eve</button>
-        <button onclick="join('Bob')">Join as Bob</button>
+    <nav class="navbar">
+        <div class="nav-brand">BB84 Sim</div>
+        <button class="nav-btn" onclick="openHelp()">How to Play</button>
+    </nav>
+
+    <div id="help-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>BB84 Protocol Guide</h3>
+                <button style="width:auto; padding:4px 8px; margin:0; background:transparent; color:#666; box-shadow:none;" onclick="closeHelp()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <div><strong>Transmission:</strong> Alice sends bits using Basis Z or X. Bob guesses a basis to measure.</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <div><strong>Basis Matching:</strong> After sending ~5-10 photons, Alice and Bob compare ONLY the Basis (Z or X) they used for each photon in the Public Chat.</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <div><strong>Filtering:</strong> If bases MATCH, keep the bit. If bases MISMATCH, discard it. This creates the "Shared Key".</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <div><strong>Spy Check:</strong> Compare a small sample of the kept bits. If there are errors, Eve is listening!</div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div id="game" class="hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 id="role-display"></h2>
-            <span style="color: green;">● Connected</span>
-        </div>
-        <p id="status" style="color: blue; font-weight: bold; min-height: 1.2em;">...</p>
-        
-        <div id="alice-area" class="card hidden">
-            <h3>Alice (Sender)</h3>
-            Bit: <select id="a-bit"><option value="0">0</option><option value="1">1</option></select>
-            Basis: <select id="a-basis"><option value="Z">Z</option><option value="X">X</option></select>
-            <br><br>
-            <button id="btn-send" onclick="aliceSend()">Send Photon</button>
-            
-            <div class="history-box">
-                <h4>Alice's Private History</h4>
-                <table id="alice-history">
-                    <tr><th>#</th><th>Sent Bit</th><th>Sent Basis</th></tr>
-                </table>
+    <div class="container">
+        <div id="login" class="card">
+            <div class="header-row">
+                <h3>Select Station</h3>
+            </div>
+            <div class="role-grid">
+                <button id="btn-Alice" class="btn-role" onclick="join('Alice')">
+                    <span>Alice (Sender)</span>
+                </button>
+                <button id="btn-Eve" class="btn-role" onclick="join('Eve')">
+                    <span>Eve (Interceptor)</span>
+                </button>
+                <button id="btn-Bob" class="btn-role" onclick="join('Bob')">
+                    <span>Bob (Receiver)</span>
+                </button>
             </div>
         </div>
 
-        <div id="eve-area" class="card hidden">
-            <h3>Eve (Attacker)</h3>
-            <div id="eve-alert" style="display: none; background: #ffdddd; padding: 15px; border-radius:5px;">
-                <strong>Incoming Photon!</strong>
-                <br><br>
-                <button onclick="measureAndForward('Z')">Measure Z</button>
-                <button onclick="measureAndForward('X')">Measure X</button>
-            </div>
-            <p id="eve-wait">Scanning channel...</p>
+        <div id="game" class="hidden">
             
-            <div class="history-box">
-                <h4>Eve's Private History</h4>
-                <table id="eve-history">
-                    <tr><th>#</th><th>Measured Result</th><th>Basis Used</th></tr>
-                </table>
+            <div class="card" style="padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;">
+                <span id="role-display" style="font-weight: 600;">Connecting...</span>
+                <div class="status-badge"><div class="status-dot"></div>Online</div>
             </div>
-        </div>
 
-        <div id="bob-area" class="card hidden">
-            <h3>Bob (Receiver)</h3>
-            <div id="bob-alert" style="display: none; background: #ddffdd; padding: 15px; border-radius:5px;">
-                <strong>Photon Received!</strong>
-                <br><br>
-                <button onclick="bobMeasure('Z')">Measure Z</button>
-                <button onclick="bobMeasure('X')">Measure X</button>
+            <div style="margin-bottom: 12px; text-align: center;">
+                <p id="status" style="color: var(--primary); font-weight: 500; font-size: 0.9rem; min-height: 1.4em;">Ready to start.</p>
             </div>
-            <div id="bob-result" style="font-size: 1.2em; margin: 10px 0; font-weight:bold;"></div>
             
-            <div class="history-box">
-                <h4>Bob's Private History</h4>
-                <table id="bob-history">
-                    <tr><th>#</th><th>Measured Result</th><th>Basis Used</th></tr>
-                </table>
-            </div>
-        </div>
+            <div id="alice-area" class="card hidden">
+                <div class="header-row"><h3>Alice's Lab</h3></div>
+                
+                <div class="control-group">
+                    <div>
+                        <label>Bit Value</label>
+                        <select id="a-bit">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Basis</label>
+                        <select id="a-basis">
+                            <option value="Z">Basis Z</option>
+                            <option value="X">Basis X</option>
+                        </select>
+                    </div>
+                </div>
 
-        <div class="card">
-            <h3>Public Channel</h3>
-            <div id="chat-log" class="log"></div>
-            <input type="text" id="chat-input" placeholder="Type here..." style="width: 70%; padding: 8px;">
-            <button onclick="sendMessage()">Send</button>
+                <button id="btn-send" onclick="aliceSend()">Transmit Photon</button>
+                
+                <div class="history-wrapper">
+                    <div class="history-header">Transmission Log</div>
+                    <div class="history-scroll">
+                        <table id="alice-history">
+                            <thead><tr><th>#</th><th>Bit</th><th>Basis</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="eve-area" class="card hidden">
+                <div class="header-row"><h3>Eve's Equipment</h3></div>
+                
+                <div id="eve-alert" class="alert-box hidden">
+                    <strong>Photon Intercepted</strong>
+                    <div style="font-size:0.9rem; margin-bottom:12px;">Choose a basis to measure and re-send:</div>
+                    <div class="alert-actions">
+                        <button onclick="measureAndForward('Z')">Basis Z</button>
+                        <button onclick="measureAndForward('X')">Basis X</button>
+                    </div>
+                </div>
+
+                <p id="eve-wait" style="text-align: center; color: var(--text-muted); padding: 20px;">Scanning quantum channel...</p>
+                
+                <div class="history-wrapper">
+                    <div class="history-header">Interception Log</div>
+                    <div class="history-scroll">
+                        <table id="eve-history">
+                            <thead><tr><th>#</th><th>Result</th><th>Basis</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bob-area" class="card hidden">
+                <div class="header-row"><h3>Bob's Lab</h3></div>
+                
+                <div id="bob-alert" class="alert-box hidden" style="background:#ecfdf5; border-color:#6ee7b7; color:#064e3b; animation: none;">
+                    <strong>Photon Received</strong>
+                    <div style="font-size:0.9rem; margin-bottom:12px;">Select basis to measure:</div>
+                    <div class="alert-actions">
+                        <button style="color:#064e3b; border-color:#6ee7b7;" onclick="bobMeasure('Z')">Basis Z</button>
+                        <button style="color:#064e3b; border-color:#6ee7b7;" onclick="bobMeasure('X')">Basis X</button>
+                    </div>
+                </div>
+
+                <div id="bob-result" style="text-align:center; font-size: 1.2rem; font-weight: 700; margin: 15px 0; min-height: 1.5em;"></div>
+                
+                <div class="history-wrapper">
+                    <div class="history-header">Measurement Log</div>
+                    <div class="history-scroll">
+                        <table id="bob-history">
+                            <thead><tr><th>#</th><th>Result</th><th>Basis</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="header-row"><h3>Public Channel</h3></div>
+                <div class="chat-container">
+                    <div id="chat-log" class="log">
+                        <div class="chat-msg" style="background:#f3f4f6; color:#666; font-style:italic;">Compare bases here to filter the key.</div>
+                    </div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-input" placeholder="Type message...">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -103,7 +347,33 @@
         const socket = io();
         let user = "";
         let pendingData = null;
-        let photonCount = 0; // Local counter for history
+        let photonCount = 0;
+
+        // --- UI HELPERS ---
+        function openHelp() {
+            document.getElementById('help-modal').classList.add('active');
+        }
+        function closeHelp() {
+            document.getElementById('help-modal').classList.remove('active');
+        }
+
+        // --- LOBBY LOGIC ---
+        socket.on('role_update', (users) => {
+            updateButton('Alice', users.Alice);
+            updateButton('Eve', users.Eve);
+            updateButton('Bob', users.Bob);
+        });
+
+        function updateButton(role, socketId) {
+            const btn = document.getElementById(`btn-${role}`);
+            if (socketId && socketId !== socket.id) {
+                btn.disabled = true;
+                btn.innerHTML = `<span>${role} (Occupied)</span>`;
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = `<span>Join as ${role}</span>`;
+            }
+        }
 
         // --- PHYSICS ENGINE ---
         function measure(trueBit, trueBasis, measureBasis) {
@@ -123,7 +393,7 @@
             user = assignedUser;
             document.getElementById('login').classList.add('hidden');
             document.getElementById('game').classList.remove('hidden');
-            document.getElementById('role-display').innerText = `You are: ${user}`;
+            document.getElementById('role-display').innerText = `Logged in as ${user}`;
             
             if(user === 'Alice') document.getElementById('alice-area').classList.remove('hidden');
             if(user === 'Eve') document.getElementById('eve-area').classList.remove('hidden');
@@ -132,91 +402,89 @@
 
         socket.on("chat_msg", (data) => {
             const log = document.getElementById('chat-log');
-            log.innerHTML += `<div>${data}</div>`;
+            const div = document.createElement('div');
+            div.className = 'chat-msg';
+            div.innerText = data;
+            log.appendChild(div);
             log.scrollTop = log.scrollHeight;
         });
 
-        socket.on("error_msg", alert);
+        socket.on("error_msg", (msg) => {
+            alert(msg);
+        });
 
-        // --- ALICE LOGIC ---
+        // --- ALICE ---
         function aliceSend(){
             const bit = document.getElementById('a-bit').value;
             const basis = document.getElementById('a-basis').value;
             
-            // 1. Disable Button
             document.getElementById('btn-send').disabled = true;
-            document.getElementById('btn-send').innerText = "Sending...";
+            document.getElementById('btn-send').innerText = "Transmitting...";
             
-            // 2. Add to History
             photonCount++;
-            const table = document.getElementById('alice-history');
-            const row = table.insertRow(1); // Insert at top (below header)
+            const tbody = document.querySelector('#alice-history tbody');
+            const row = tbody.insertRow(0);
             row.innerHTML = `<td>${photonCount}</td><td>${bit}</td><td>${basis}</td>`;
 
             socket.emit('alice_send', {bit, basis});
         }
 
-        // Alice Button Re-enable
         socket.on('alice_enable_button', () => {
             const btn = document.getElementById('btn-send');
             btn.disabled = false;
-            btn.innerText = "Send Next Photon";
+            btn.innerText = "Transmit Photon";
         });
 
-        socket.on('status', (msg) => {
-            document.getElementById('status').innerText = msg;
-        });
+        socket.on('status', (msg) => document.getElementById('status').innerText = msg);
 
-        // --- EVE LOGIC ---
+        // --- EVE ---
         socket.on('eve_intercept', (data) => {
             pendingData = data;
-            document.getElementById('eve-alert').style.display = 'block';
-            document.getElementById('eve-wait').style.display = 'none';
+            document.getElementById('eve-alert').classList.remove('hidden');
+            document.getElementById('eve-wait').classList.add('hidden');
         });
 
         function measureAndForward(basis){
             const result = measure(pendingData.bit, pendingData.basis, basis);
             let newBit = (result === '0' || result === '+' ) ? 0 : 1;
             
-            // History
             photonCount++;
-            const table = document.getElementById('eve-history');
-            const row = table.insertRow(1);
+            const tbody = document.querySelector('#eve-history tbody');
+            const row = tbody.insertRow(0);
             row.innerHTML = `<td>${photonCount}</td><td>${result}</td><td>${basis}</td>`;
 
             socket.emit('eve_forward', {bit: newBit, basis});
-            document.getElementById('eve-alert').style.display = 'none';
-            document.getElementById('eve-wait').style.display = 'block';
+            document.getElementById('eve-alert').classList.add('hidden');
+            document.getElementById('eve-wait').classList.remove('hidden');
         }
 
-        // --- BOB LOGIC ---
+        // --- BOB ---
         socket.on('bob_receive', (data) => {
             pendingData = data;
-            document.getElementById('bob-alert').style.display = 'block';
+            document.getElementById('bob-alert').classList.remove('hidden');
             document.getElementById('bob-result').innerText = '';
         });
 
         function bobMeasure(basis){
             const result = measure(pendingData.bit, pendingData.basis, basis);
-            document.getElementById('bob-result').innerText = `You measured: ${result}`;
+            document.getElementById('bob-result').innerText = `Measurement: ${result}`;
+            document.getElementById('bob-result').style.color = 'var(--primary)';
             
-            // History
             photonCount++;
-            const table = document.getElementById('bob-history');
-            const row = table.insertRow(1);
+            const tbody = document.querySelector('#bob-history tbody');
+            const row = tbody.insertRow(0);
             row.innerHTML = `<td>${photonCount}</td><td>${result}</td><td>${basis}</td>`;
 
-            document.getElementById('bob-alert').style.display = 'none';
-            
-            // Unlock Alice
+            document.getElementById('bob-alert').classList.add('hidden');
             socket.emit('bob_measured_confirmation');
         }
 
         // --- CHAT ---
         function sendMessage(){
-            const txt = document.getElementById('chat-input').value;
-            socket.emit('public_chat', `${user}: ${txt}`);
-            document.getElementById('chat-input').value = '';
+            const input = document.getElementById('chat-input');
+            if(!input.value) return;
+            socket.emit('public_chat', `${user}: ${input.value}`);
+            input.value = '';
         }
     </script>
 </body>
