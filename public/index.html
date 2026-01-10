@@ -1,17 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
-<body>
-    <h1>Connection Test</h1>
-    <h2 id="status" style="color: red">Not Connected...</h2>
-
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BB84 Chat</title>
+    
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .log{
+            height: 150px;
+            overflow-y: scroll;
+            background: #e9ecef;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        select {
+            padding: 8px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .role-badge {
+            background: #eee;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>BB84 Simulation</h1>
+    
+    <div id="login" class="card">
+        <h3>Select Your Role</h3>
+        <button onclick="join('Alice')">Join as Alice</button>
+        <button onclick="join('Eve')">Join as Eve</button>
+        <button onclick="join('Bob')">Join as Bob</button>
+    </div>
+
+    <div id="game" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="role-display"></h2>
+            <span id="connection-status" style="color: green;">● Connected</span>
+        </div>
+        <p id="status" style="color: blue; font-weight: bold;"></p>
+        
+        <div id="alice-area" class="card hidden">
+            <h3>Alice (Sender)</h3>
+            Bit:<select id="a-bit">
+                <option value="0">0</option>
+                <option value="1">1</option>
+            </select>
+            Basis:<select id="a-basis">
+                <option value="Z">Z</option>
+                <option value="X">X</option>
+            </select>
+            <br><br>
+            <button onclick="aliceSend()">Send Photon</button>
+        </div>
+
+        <div id="eve-area" class="card hidden">
+            <h3>Eve (Eavesdropper)</h3>
+            <div id="eve-alert" style="display: none; background: #ffdddd; padding: 10px;">
+                <strong>Incoming Photon!</strong> Measure it to forward it.
+                <br>
+                <button onclick="measureAndForward('Z')">Measure Z</button>
+                <button onclick="measureAndForward('X')">Measure X</button>
+            </div>
+            <p id="eve-wait">Waiting for Alice...</p>
+        </div>
+
+        <div id="bob-area" class="card hidden">
+            <h3>Bob (Receiver)</h3>
+            <div id="bob-alert" style="display: none; background: #ddffdd; padding: 10px;">
+                <strong>Incoming Photon!</strong> Measure it.
+                <br>
+                <button onclick="bobMeasure('Z')">Measure Z</button>
+                <button onclick="bobMeasure('X')">Measure X</button>
+            </div>
+            
+            <p id="bob-wait">Waiting for Alice...</p>
+            <div id="bob-result" style="font-size: 20px; margin-top: 10px;"></div>
+        </div>
+
+        <div class="card">
+            <h3>Public Channel</h3>
+            <div id="chat-log" class="log"></div>
+            <input type="text" id="chat-input" placeholder="Type a message..." style="width: 80%;">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
     <script>
         const socket = io();
 
-        socket.on('connect', () => {
-            document.getElementById('status').innerText = 'Connected!';
-            document.getElementById('status').style.color = 'green';
+        let user = "";
+        let pendingData = null;
+
+        function measure(trueBit, trueBasis, measureBasis) {
+            if (trueBasis === measureBasis) {
+                if (measureBasis === 'Z') return trueBit == 0 ? '0' : '1';
+                if (measureBasis === 'X') return trueBit == 0 ? '+' : '-';
+            }
+            const rand = Math.random() < 0.5;
+            if (measureBasis === 'Z') return rand ? '0' : '1';
+            if (measureBasis === 'X') return rand ? '+' : '-';
+        }
+
+        function join(user){
+            socket.emit('join_as', user);
+        }
+
+        socket.on('user_assigned', (assignedUser) => {
+            user = assignedUser;
+            document.getElementById('login').classList.add('hidden');
+            document.getElementById('game').classList.remove('hidden');
+            document.getElementById('role-display').innerText = `You are: ${user}`;
+            
+            if(user === 'Alice'){
+                document.getElementById('alice-area').classList.remove('hidden');
+            } else if(user === 'Eve'){
+                document.getElementById('eve-area').classList.remove('hidden');
+            } else if(user === 'Bob'){
+                document.getElementById('bob-area').classList.remove('hidden');
+            }
         });
+
+        socket.on("chat_msg", (data) => {
+            const log = document.getElementById('chat-log');
+            log.innerHTML += `<div>${data}</div>`;
+            log.scrollTop = log.scrollHeight;
+        });
+
+        socket.on("error_msg", alert)
+
+        // Alice actions
+        function aliceSend(){
+            const bit = document.getElementById('a-bit').value;
+            const basis = document.getElementById('a-basis').value;
+            socket.emit('alice_send', {bit, basis});
+        }
+
+        socket.on('status', (msg) => {
+            document.getElementById('status').innerText = msg;
+        });
+
+        // Eve actions
+        socket.on('eve_intercept', (data) => {
+            pendingData = data;
+            document.getElementById('eve-alert').style.display = 'block';
+            document.getElementById('eve-wait').style.display = 'none';
+        });
+
+        function measureAndForward(basis){
+            const result = measure(pendingData.bit, pendingData.basis, basis);
+            let newBit = (result === '0' || result === '+' ) ? 0 : 1;
+
+            document.getElementById('chat-log').innerHTML += `<div style="color: red;">[Secret] You measured: ${result}</div>`;
+            socket.emit('eve_forward', {bit: newBit, basis});
+            document.getElementById('eve-alert').style.display = 'none';
+            document.getElementById('eve-wait').style.display = 'block';
+        }
+
+        // Bob actions
+        socket.on('bob_receive', (data) => {
+            pendingData = data;
+            document.getElementById('bob-alert').style.display = 'block';
+            document.getElementById('bob-wait').style.display = 'none';
+            document.getElementById('bob-result').innerText = '';
+        });
+
+        function bobMeasure(basis){
+            const result = measure(pendingData.bit, pendingData.basis, basis);
+            document.getElementById('bob-result').innerText = `You measured: ${result}`;
+            document.getElementById('bob-alert').style.display = 'none';
+        }
+
+        // Chat 
+        function sendMessage(){
+            const txt = document.getElementById('chat-input').value;
+            socket.emit('public_chat', `${user}: ${txt}`);
+            document.getElementById('chat-input').value = '';
+        }
     </script>
 </body>
 </html>
