@@ -9,6 +9,7 @@
         :root {
             --primary: #4f46e5;
             --primary-hover: #4338ca;
+            --danger: #ef4444;
             --bg: #f3f4f6;
             --card-bg: #ffffff;
             --text-main: #1f2937;
@@ -238,7 +239,10 @@
             
             <div class="card" style="padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;">
                 <span id="role-display" style="font-weight: 600;">Connecting...</span>
-                <div class="status-badge"><div class="status-dot"></div>Online</div>
+                <div style="display:flex; align-items: center; gap: 10px;">
+                    <div class="status-badge"><div class="status-dot"></div>Online</div>
+                    <button onclick="logout()" style="width:auto; padding:6px 12px; margin:0; font-size:0.8rem; background-color: var(--danger);">Logout</button>
+                </div>
             </div>
 
             <div style="margin-bottom: 12px; text-align: center;">
@@ -400,6 +404,30 @@
             if(user === 'Bob') document.getElementById('bob-area').classList.remove('hidden');
         });
 
+        // --- LOGOUT LOGIC ---
+        function logout() {
+            socket.emit('leave_role');
+            
+            user = "";
+            photonCount = 0;
+            pendingData = null;
+            
+            // Clear all tables
+            document.querySelector('#alice-history tbody').innerHTML = '';
+            document.querySelector('#eve-history tbody').innerHTML = '';
+            document.querySelector('#bob-history tbody').innerHTML = '';
+            document.getElementById('chat-log').innerHTML = '<div class="chat-msg" style="background:#f3f4f6; color:#666; font-style:italic;">Compare bases here to filter the key.</div>';
+
+            // Switch Views
+            document.getElementById('game').classList.add('hidden');
+            document.getElementById('alice-area').classList.add('hidden');
+            document.getElementById('eve-area').classList.add('hidden');
+            document.getElementById('bob-area').classList.add('hidden');
+            document.getElementById('login').classList.remove('hidden');
+
+            socket.emit('request_status'); 
+        }
+
         socket.on("chat_msg", (data) => {
             const log = document.getElementById('chat-log');
             const div = document.createElement('div');
@@ -417,23 +445,32 @@
         function aliceSend(){
             const bit = document.getElementById('a-bit').value;
             const basis = document.getElementById('a-basis').value;
-            
-            document.getElementById('btn-send').disabled = true;
-            document.getElementById('btn-send').innerText = "Transmitting...";
-            
-            photonCount++;
-            const tbody = document.querySelector('#alice-history tbody');
-            const row = tbody.insertRow(0);
-            row.innerHTML = `<td>${photonCount}</td><td>${bit}</td><td>${basis}</td>`;
-
-            socket.emit('alice_send', {bit, basis});
-        }
-
-        socket.on('alice_enable_button', () => {
             const btn = document.getElementById('btn-send');
-            btn.disabled = false;
-            btn.innerText = "Transmit Photon";
-        });
+            
+            // Disable immediately to prevent spamming
+            btn.disabled = true;
+            btn.innerText = "Transmitting...";
+            
+            // Emit with CALLBACK to confirm delivery
+            socket.emit('alice_send', {bit, basis}, (response) => {
+                if(response && response.status === 'ok') {
+                    // Only add to history if success
+                    photonCount++;
+                    const tbody = document.querySelector('#alice-history tbody');
+                    const row = tbody.insertRow(0);
+                    row.innerHTML = `<td>${photonCount}</td><td>${bit}</td><td>${basis}</td>`;
+                    
+                    btn.innerText = "Sent!";
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerText = "Transmit Photon";
+                    }, 500);
+                } else {
+                    btn.disabled = false;
+                    btn.innerText = "Transmit Photon";
+                }
+            });
+        }
 
         socket.on('status', (msg) => document.getElementById('status').innerText = msg);
 
