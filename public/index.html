@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+    <h1>Connection Test</h1>
+    <h2 id="status" style="color: red">Not Connected...</h2>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            document.getElementById('status').innerText = 'Connected!';
+            document.getElementById('status').style.color = 'green';
+        });
+    </script>
+</body>
+</html>

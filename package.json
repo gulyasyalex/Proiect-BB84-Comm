@@ -1,0 +1,25 @@
+{
+  "name": "proiect-bb84-comm",
+  "version": "1.0.0",
+  "description": "BB84 Communication Game",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gulyasyalex/Proiect-BB84-Comm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gulyasyalex/Proiect-BB84-Comm/issues"
+  },
+  "homepage": "https://github.com/gulyasyalex/Proiect-BB84-Comm#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}
