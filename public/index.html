@@ -254,15 +254,17 @@
                 
                 <div class="control-group">
                     <div>
+                        <label>Bit Value</label>
+                        <select id="a-bit">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                        </select>
+                    </div>
+                    <div>
                         <label>Basis</label>
                         <select id="a-basis">
                             <option value="Z">Basis Z</option>
                             <option value="X">Basis X</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Bit Value</label>
-                        <select id="a-bit">
                         </select>
                     </div>
                 </div>
@@ -273,7 +275,12 @@
                     <div class="history-header">Transmission Log</div>
                     <div class="history-scroll">
                         <table id="alice-history">
-                            <thead><tr><th>#</th><th>Bit</th><th>Basis</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Bit (Key)</th> <th>Basis</th>
+                                    <th>Sent (Symbol)</th> </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -298,7 +305,13 @@
                     <div class="history-header">Interception Log</div>
                     <div class="history-scroll">
                         <table id="eve-history">
-                            <thead><tr><th>#</th><th>Result</th><th>Basis</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Measured (Symbol)</th>
+                                    <th>Basis</th>
+                                    <th>Bit (Forwarded)</th> </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -323,7 +336,12 @@
                     <div class="history-header">Measurement Log</div>
                     <div class="history-scroll">
                         <table id="bob-history">
-                            <thead><tr><th>#</th><th>Result</th><th>Basis</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Received (Symbol)</th> <th>Basis</th>
+                                    <th>Bit (Key)</th> </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -440,24 +458,37 @@
         });
 
         // --- ALICE ---
-        function aliceSend(){
-            const bit = document.getElementById('a-bit').value;
+        function aliceSend() {
+            
+            const bitValue = document.getElementById('a-bit').value; // Always "0" or "1"
             const basis = document.getElementById('a-basis').value;
             const btn = document.getElementById('btn-send');
-            
-            // Disable immediately to prevent spamming
+
+            // Calculate the Visual Symbol for the Log
+            let visualSymbol = bitValue; // Default to 0 or 1 (for Z basis)
+            if (basis === 'X') {
+                if (bitValue === '0') visualSymbol = '+';
+                else visualSymbol = '-';
+            }
+
             btn.disabled = true;
             btn.innerText = "Transmitting...";
-            
-            // Emit with CALLBACK to confirm delivery
-            socket.emit('alice_send', {bit, basis}, (response) => {
-                if(response && response.status === 'ok') {
-                    // Only add to history if success
+
+            socket.emit('alice_send', { bit: bitValue, basis }, (response) => {
+                if (response && response.status === 'ok') {
                     photonCount++;
+                    
                     const tbody = document.querySelector('#alice-history tbody');
                     const row = tbody.insertRow(0);
-                    row.innerHTML = `<td>${photonCount}</td><td>${bit}</td><td>${basis}</td>`;
                     
+                    // Columns: # | Bit (Key) | Basis | Sent (Symbol)
+                    row.innerHTML = `
+                        <td>${photonCount}</td>
+                        <td><strong>${bitValue}</strong></td>
+                        <td>${basis}</td>
+                        <td style="color:var(--primary); font-weight:bold;">${visualSymbol}</td>
+                    `;
+
                     btn.innerText = "Sent!";
                     setTimeout(() => {
                         btn.disabled = false;
@@ -480,15 +511,25 @@
         });
 
         function measureAndForward(basis){
+            
             const result = measure(pendingData.bit, pendingData.basis, basis);
-            let newBit = (result === '0' || result === '+' ) ? 0 : 1;
+            
+            
+            let newBit = (result === '0' || result === '+' ) ? '0' : '1';
             
             photonCount++;
             const tbody = document.querySelector('#eve-history tbody');
             const row = tbody.insertRow(0);
-            row.innerHTML = `<td>${photonCount}</td><td>${result}</td><td>${basis}</td>`;
+            
+            row.innerHTML = `
+                <td>${photonCount}</td>
+                <td style="color:var(--danger); font-weight:bold;">${result}</td>
+                <td>${basis}</td>
+                <td><strong>${newBit}</strong></td>
+            `;
 
             socket.emit('eve_forward', {bit: newBit, basis});
+            
             document.getElementById('eve-alert').classList.add('hidden');
             document.getElementById('eve-wait').classList.remove('hidden');
         }
@@ -500,15 +541,34 @@
             document.getElementById('bob-result').innerText = '';
         });
 
-        function bobMeasure(basis){
-            const result = measure(pendingData.bit, pendingData.basis, basis);
-            document.getElementById('bob-result').innerText = `Measurement: ${result}`;
-            document.getElementById('bob-result').style.color = 'var(--primary)';
+        function bobMeasure(basis) {
             
+            const rawResult = measure(pendingData.bit, pendingData.basis, basis);
+
+            
+            let interpretedBit;
+            if (rawResult === '0' || rawResult === '+') {
+                interpretedBit = '0';
+            } else {
+                interpretedBit = '1';
+            }
+
+            
+            document.getElementById('bob-result').innerHTML = 
+                `Measured: <strong>${rawResult}</strong> <span style="color:#666;">(Bit: ${interpretedBit})</span>`;
+            document.getElementById('bob-result').style.color = 'var(--primary)';
+
             photonCount++;
             const tbody = document.querySelector('#bob-history tbody');
             const row = tbody.insertRow(0);
-            row.innerHTML = `<td>${photonCount}</td><td>${result}</td><td>${basis}</td>`;
+
+            // Columns: # | Received (Symbol) | Basis | Bit (Key)
+            row.innerHTML = `
+                <td>${photonCount}</td>
+                <td style="color:var(--primary); font-weight:bold;">${rawResult}</td>
+                <td>${basis}</td>
+                <td><strong>${interpretedBit}</strong></td>
+            `;
 
             document.getElementById('bob-alert').classList.add('hidden');
             socket.emit('bob_measured_confirmation');
@@ -522,35 +582,6 @@
             input.value = '';
         }
 
-        const basisSelect = document.getElementById('a-basis');
-        const bitSelect = document.getElementById('a-bit');
-
-        const optionsMap = {
-            'Z': [{ text: '0', value: '0' }, { text: '1', value: '1' }],
-            'X': [{ text: '+', value: '0' }, { text: '-', value: '1' }]
-        };
-
-        function updateBitOptions() {
-            // Get the currently selected Basis (Z or X)
-            const selectedBasis = basisSelect.value;
-            
-            // Get the corresponding list of options
-            const newOptions = optionsMap[selectedBasis];
-
-            // Clear the current options in the Bit Value dropdown
-            bitSelect.innerHTML = '';
-
-            // Loop through the new options and add them to the dropdown
-            newOptions.forEach(opt => {
-                const optionElement = document.createElement('option');
-                optionElement.value = opt.value;
-                optionElement.textContent = opt.text;
-                bitSelect.appendChild(optionElement);
-            });
-        }
-        basisSelect.addEventListener('change', updateBitOptions);
-
-        updateBitOptions();
 
         socket.on('reset_history', () => {
             photonCount = 0;
