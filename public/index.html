@@ -254,17 +254,15 @@
                 
                 <div class="control-group">
                     <div>
-                        <label>Bit Value</label>
-                        <select id="a-bit">
-                            <option value="0">0</option>
-                            <option value="1">1</option>
-                        </select>
-                    </div>
-                    <div>
                         <label>Basis</label>
                         <select id="a-basis">
                             <option value="Z">Basis Z</option>
                             <option value="X">Basis X</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Bit Value</label>
+                        <select id="a-bit">
                         </select>
                     </div>
                 </div>
@@ -523,6 +521,36 @@
             socket.emit('public_chat', `${user}: ${input.value}`);
             input.value = '';
         }
+
+        const basisSelect = document.getElementById('a-basis');
+        const bitSelect = document.getElementById('a-bit');
+
+        const optionsMap = {
+            'Z': [{ text: '0', value: '0' }, { text: '1', value: '1' }],
+            'X': [{ text: '+', value: '+' }, { text: '-', value: '-' }]
+        };
+
+        function updateBitOptions() {
+            // Get the currently selected Basis (Z or X)
+            const selectedBasis = basisSelect.value;
+            
+            // Get the corresponding list of options
+            const newOptions = optionsMap[selectedBasis];
+
+            // Clear the current options in the Bit Value dropdown
+            bitSelect.innerHTML = '';
+
+            // Loop through the new options and add them to the dropdown
+            newOptions.forEach(opt => {
+                const optionElement = document.createElement('option');
+                optionElement.value = opt.value;
+                optionElement.textContent = opt.text;
+                bitSelect.appendChild(optionElement);
+            });
+        }
+        basisSelect.addEventListener('change', updateBitOptions);
+
+        updateBitOptions();
     </script>
 </body>
 </html>
