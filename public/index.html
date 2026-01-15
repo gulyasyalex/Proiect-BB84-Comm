@@ -551,6 +551,17 @@
         basisSelect.addEventListener('change', updateBitOptions);
 
         updateBitOptions();
+
+        socket.on('reset_history', () => {
+            photonCount = 0;
+            
+            document.querySelector('#alice-history tbody').innerHTML = '';
+            document.querySelector('#eve-history tbody').innerHTML = '';
+            document.querySelector('#bob-history tbody').innerHTML = '';
+            
+            document.getElementById('status').innerText = "Session reset.";
+            document.getElementById('bob-result').innerText = "";
+        });
     </script>
 </body>
 </html>
